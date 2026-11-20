@@ -1,51 +1,53 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Badge, Button, Chip, FilmCard, Icon, IconButton, ReviewCard, ScoreDial, StarRating, Tabs, TextField } from './ds'
+import { useEffect, useMemo, useState } from 'react'
+import { Badge, Button, Chip, FilmCard, Icon, StarRating, Tabs, TextField } from './ds'
 import { FILMS } from './data/films.js'
 import { posterFor } from './posters.js'
-
-/* ---------- Utilitaires ---------- */
-
-const dateFormat = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
-const formatDate = (iso) => dateFormat.format(new Date(iso))
-
-const average = (reviews) =>
-  reviews.length ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10 : 0
-
-const normalize = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-
-const meta = (film) => [film.year, film.duration, film.director].join(' · ')
-
-const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`
-
-const todayISO = () => new Date().toISOString().slice(0, 10)
-
-/* ---------- App ---------- */
+import { loadStore, saveStore } from './store.js'
+import { average, byNewest, cx, meta, newId, normalize, plural } from './lib.js'
+import { RateStars } from './components/fields.jsx'
+import { FilmModal } from './components/FilmModal.jsx'
+import { AddFilmDialog } from './components/AddFilmDialog.jsx'
 
 export default function App() {
-  const [reviewsById, setReviewsById] = useState(() => Object.fromEntries(FILMS.map((f) => [f.id, f.reviews])))
+  const [store, setStore] = useState(loadStore)
   const [query, setQuery] = useState('')
   const [genre, setGenre] = useState(null)
   const [view, setView] = useState('all')
-  const [opened, setOpened] = useState(null) // { id, play }
+  const [opened, setOpened] = useState(null) // { id, play, write }
+  const [adding, setAdding] = useState(false)
+  const [justAdded, setJustAdded] = useState(null)
+  const [toast, setToast] = useState(null)
 
-  const films = useMemo(
-    () =>
-      FILMS.map((f) => {
-        const reviews = reviewsById[f.id]
-        return { ...f, poster: posterFor(f), reviews, score: average(reviews) }
-      }),
-    [reviewsById],
-  )
+  // Enregistre dans le navigateur puis met à jour l'écran.
+  // `strict` : si l'enregistrement échoue, on n'applique pas le changement (pour ne pas promettre un film qui disparaîtra).
+  const persist = (next, { strict = false } = {}) => {
+    const ok = saveStore(next)
+    if (ok || !strict) setStore(next)
+    return ok
+  }
 
-  const genres = useMemo(() => [...new Set(FILMS.flatMap((f) => f.genres))].sort((a, b) => a.localeCompare(b, 'fr')), [])
+  // Films d'exemple + films ajoutés, avec leurs notes : critiques (exemple et visiteur) + note du visiteur.
+  const films = useMemo(() => {
+    const all = [...store.films.map((f) => ({ ...f, user: true })), ...FILMS]
+    return all.map((f) => {
+      const reviews = [...(f.reviews || []), ...(store.reviews[f.id] || [])].sort(byNewest)
+      const myRating = store.ratings[f.id] || 0
+      const notes = [...reviews.map((r) => r.rating), ...(myRating ? [myRating] : [])]
+      return { ...f, poster: posterFor(f), reviews, myRating, notes, count: notes.length, score: average(notes) }
+    })
+  }, [store])
+
+  const genres = useMemo(() => [...new Set(films.flatMap((f) => f.genres))].sort((a, b) => a.localeCompare(b, 'fr')), [films])
 
   const q = normalize(query.trim())
   const matching = films.filter(
-    (f) => (!genre || f.genres.includes(genre)) && (!q || normalize(`${f.title} ${f.director} ${f.cast.join(' ')}`).includes(q)),
+    (f) =>
+      (!genre || f.genres.includes(genre)) &&
+      (!q || normalize(`${f.title} ${f.director || ''} ${(f.cast || []).join(' ')}`).includes(q)),
   )
   const views = {
     all: matching,
-    top: [...matching].sort((a, b) => b.score - a.score),
+    top: [...matching].sort((a, b) => b.score - a.score || b.count - a.count),
     favorites: matching.filter((f) => f.badge),
   }
   const shown = views[view]
@@ -53,9 +55,36 @@ export default function App() {
   const featured = films.find((f) => f.featured) || films[0]
   const current = opened && films.find((f) => f.id === opened.id)
 
-  const open = (film, play = false) => setOpened({ id: film.id, play })
+  const open = (film, opts = {}) => setOpened({ id: film.id, ...opts })
+
+  const rate = (filmId, rating) => persist({ ...store, ratings: { ...store.ratings, [filmId]: rating } })
+
   const addReview = (filmId, review) =>
-    setReviewsById((prev) => ({ ...prev, [filmId]: [review, ...prev[filmId]] }))
+    persist({
+      ...store,
+      pseudo: review.author,
+      reviews: { ...store.reviews, [filmId]: [review, ...(store.reviews[filmId] || [])] },
+    })
+
+  const addFilm = (data) => {
+    const film = { id: newId('film'), createdAt: new Date().toISOString(), cast: [], reviews: [], ...data }
+    const ok = persist({ ...store, films: [film, ...store.films] }, { strict: true })
+    if (!ok) return false
+    setAdding(false)
+    setQuery('')
+    setGenre(null)
+    setView('all')
+    setJustAdded(film.id)
+    setToast(`« ${film.title} » a été ajouté.`)
+    requestAnimationFrame(() => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' }))
+    return true
+  }
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 4000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   return (
     <>
@@ -70,13 +99,16 @@ export default function App() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
+          <Button variant="secondary" icon="plus" className="topbar__add" onClick={() => setAdding(true)}>
+            Ajouter un film
+          </Button>
         </div>
       </header>
 
       <main>
         <Hero film={featured} onOpen={open} />
 
-        <section className="page catalog" aria-labelledby="catalog-title">
+        <section id="catalog" className="page catalog" aria-labelledby="catalog-title">
           <div className="catalog__head">
             <h2 id="catalog-title" className="h1">Les films</h2>
             <p className="caption muted">Les films, notés par ceux qui les aiment.</p>
@@ -104,21 +136,13 @@ export default function App() {
           {shown.length ? (
             <ul className="grid">
               {shown.map((film) => (
-                <li key={film.id} className="tile">
-                  <FilmCard
-                    title={film.title}
-                    score={film.score}
-                    poster={film.poster}
-                    year={film.year}
-                    duration={film.duration}
-                    director={film.director}
-                    genres={film.genres}
-                    badge={film.badge}
-                  />
-                  <button type="button" className="tile__open" onClick={() => open(film)}>
-                    <span className="sr-only">Voir les détails de {film.title}</span>
-                  </button>
-                </li>
+                <FilmTile
+                  key={film.id}
+                  film={film}
+                  isNew={film.id === justAdded}
+                  onOpen={() => open(film)}
+                  onRate={(n) => rate(film.id, n)}
+                />
               ))}
             </ul>
           ) : (
@@ -136,16 +160,62 @@ export default function App() {
 
       <footer className="page footer">
         <span className="brand brand--sm">Most Critical</span>
-        <span className="caption muted">Films et critiques fictifs, pour la démo.</span>
+        <span className="caption muted">
+          Films et critiques d’exemple fictifs. Tes films, notes et critiques sont enregistrés dans ce navigateur.
+        </span>
       </footer>
 
       <FilmModal
         film={current}
         autoplay={!!opened?.play}
+        startWriting={!!opened?.write}
+        pseudo={store.pseudo}
         onClose={() => setOpened(null)}
+        onRate={rate}
         onAddReview={addReview}
       />
+
+      <AddFilmDialog open={adding} onClose={() => setAdding(false)} onAdd={addFilm} />
+
+      <div className="toast-region" role="status" aria-live="polite">
+        {toast && <p className="toast"><Icon name="check" size={18} />{toast}</p>}
+      </div>
     </>
+  )
+}
+
+/* ---------- Carte de film dans la grille ---------- */
+
+function FilmTile({ film, isNew, onOpen, onRate }) {
+  return (
+    <li className={cx('tile', isNew && 'is-new', !film.count && 'is-unrated')}>
+      <FilmCard
+        title={film.title}
+        score={film.score}
+        poster={film.poster}
+        year={film.year}
+        duration={film.duration}
+        director={film.director}
+        genres={film.genres}
+        badge={film.badge}
+      />
+      <button type="button" className="tile__open" onClick={onOpen}>
+        <span className="sr-only">Voir les détails de {film.title}</span>
+      </button>
+      <div className="tile__rate">
+        <RateStars value={film.myRating} onChange={onRate} size={18} label={`Noter ${film.title}`} />
+        <span className="tile__avg" aria-live="polite">
+          {film.count ? (
+            <>
+              <b className={film.score <= 2 ? 'is-low' : undefined}>{film.score.toFixed(1)}</b>
+              {' · '}{plural(film.count, 'note', 'notes')}
+            </>
+          ) : (
+            'Pas encore de note'
+          )}
+        </span>
+      </div>
+    </li>
   )
 }
 
@@ -164,11 +234,13 @@ function Hero({ film, onOpen }) {
           <div className="hero__rating">
             <StarRating value={Math.round(film.score * 2) / 2} size={22} />
             <span className="score">{film.score.toFixed(1)}</span>
-            <span className="caption muted">{plural(film.reviews.length, 'critique', 'critiques')}</span>
+            <span className="caption muted">{plural(film.count, 'note', 'notes')}</span>
           </div>
           <div className="actions">
-            <Button icon="play" size="lg" onClick={() => onOpen(film, true)}>Voir la bande-annonce</Button>
-            <Button variant="secondary" size="lg" icon="comment" onClick={() => onOpen(film)}>Lire les critiques</Button>
+            <Button icon="play" size="lg" onClick={() => onOpen(film, { play: true })}>Voir la bande-annonce</Button>
+            <Button variant="secondary" size="lg" icon="comment" onClick={() => onOpen(film, { write: true })}>
+              Écrire une critique
+            </Button>
           </div>
         </div>
         <button type="button" className="hero__poster" onClick={() => onOpen(film)}>
@@ -176,255 +248,5 @@ function Hero({ film, onOpen }) {
         </button>
       </div>
     </section>
-  )
-}
-
-/* ---------- Pop-up film ---------- */
-
-function FilmModal({ film, autoplay, onClose, onAddReview }) {
-  const ref = useRef(null)
-
-  useEffect(() => {
-    const dialog = ref.current
-    if (film && !dialog.open) dialog.showModal()
-    if (!film && dialog.open) dialog.close()
-  }, [film])
-
-  return (
-    <dialog
-      ref={ref}
-      className="modal"
-      aria-labelledby="modal-title"
-      onClose={onClose}
-      onClick={(e) => { if (e.target === ref.current) onClose() }}
-    >
-      {film && <FilmDetails key={film.id} film={film} autoplay={autoplay} onClose={onClose} onAddReview={onAddReview} />}
-    </dialog>
-  )
-}
-
-function FilmDetails({ film, autoplay, onClose, onAddReview }) {
-  const press = film.reviews.filter((r) => r.critic)
-  const audience = film.reviews.filter((r) => !r.critic)
-  const [tab, setTab] = useState(press.length ? 'press' : 'public')
-  const list = tab === 'press' ? press : audience
-
-  const publish = (review) => {
-    onAddReview(film.id, review)
-    setTab('public')
-  }
-
-  return (
-    <div className="modal__inner">
-      <IconButton icon="plus" label="Fermer" variant="overlay" className="modal__close" onClick={onClose} />
-
-      <Trailer film={film} autoplay={autoplay} />
-
-      <div className="modal__body">
-        <div className="modal__head">
-          <div className="modal__poster mc-poster"><img src={film.poster} alt={`Affiche de ${film.title}`} /></div>
-          <div className="modal__info">
-            {film.badge && <Badge tone="orange" icon="heart">{film.badge}</Badge>}
-            <h2 id="modal-title" className="h1">{film.title}</h2>
-            <p className="caption muted">{meta(film)}</p>
-            <ul className="pills">
-              {film.genres.map((g) => <li key={g} className="pill">{g}</li>)}
-            </ul>
-            <p className="body">{film.synopsis}</p>
-            <p className="caption muted"><span className="label">Avec</span> {film.cast.join(', ')}</p>
-          </div>
-        </div>
-
-        <section className="panel scorecard" aria-label="Note du film">
-          <ScoreDial value={film.score} size={104} label="Moyenne" />
-          <div className="scorecard__text">
-            <span className="title">{plural(film.reviews.length, 'critique', 'critiques')}</span>
-            <span className="caption muted">
-              Presse {press.length ? average(press).toFixed(1) : '–'} · Public {audience.length ? average(audience).toFixed(1) : '–'}
-            </span>
-          </div>
-          <Distribution reviews={film.reviews} />
-        </section>
-
-        <ReviewForm onPublish={publish} />
-
-        <section className="reviews" aria-label="Critiques">
-          <Tabs
-            value={tab}
-            onChange={setTab}
-            items={[
-              { value: 'press', label: 'Presse', count: press.length },
-              { value: 'public', label: 'Public', count: audience.length },
-            ]}
-          />
-          {list.length ? (
-            <div className="reviews__list">
-              {list.map((r) => (
-                <ReviewCard
-                  key={r.id}
-                  author={r.author}
-                  critic={r.critic}
-                  rating={r.rating}
-                  date={formatDate(r.date)}
-                  headline={r.headline}
-                  likes={r.likes}
-                  comments={r.comments}
-                >
-                  {r.text}
-                </ReviewCard>
-              ))}
-            </div>
-          ) : (
-            <p className="caption muted empty-line">Pas encore de critique ici. Sois le premier ou la première.</p>
-          )}
-        </section>
-      </div>
-    </div>
-  )
-}
-
-/* ---------- Bande-annonce ---------- */
-// Si `film.trailer` contient un identifiant YouTube, on l'intègre.
-// Sinon on joue un teaser en cartons, tiré de `film.teaser`.
-
-const CARD_MS = 2400
-
-function Trailer({ film, autoplay }) {
-  const cards = [...film.teaser, film.title]
-  const [step, setStep] = useState(autoplay ? 0 : -1)
-  const playing = step >= 0
-  const last = step === cards.length - 1
-
-  useEffect(() => {
-    if (!playing || film.trailer) return
-    const t = setTimeout(() => setStep((s) => (s + 1 >= cards.length ? -1 : s + 1)), last ? CARD_MS + 1200 : CARD_MS)
-    return () => clearTimeout(t)
-  }, [step, playing, last, cards.length, film.trailer])
-
-  const seconds = Math.round((cards.length * CARD_MS + 1200) / 1000)
-
-  return (
-    <div className="trailer">
-      <img className="trailer__bg" src={film.poster} alt="" />
-      {playing && film.trailer ? (
-        <iframe
-          className="trailer__frame"
-          src={`https://www.youtube-nocookie.com/embed/${film.trailer}?autoplay=1&rel=0`}
-          title={`Bande-annonce de ${film.title}`}
-          allow="autoplay; encrypted-media; picture-in-picture"
-          allowFullScreen
-        />
-      ) : playing ? (
-        <div className="trailer__stage" aria-live="polite">
-          <p key={step} className={last ? 'trailer__card trailer__card--title display' : 'trailer__card h1'}>
-            {cards[step]}
-          </p>
-          {last && <p className="trailer__sub label">Au cinéma</p>}
-          <button type="button" className="trailer__stop label" onClick={() => setStep(-1)}>Arrêter</button>
-          <div className="trailer__progress" aria-hidden="true">
-            <span
-              key={step}
-              style={{
-                '--from': `${(step / cards.length) * 100}%`,
-                '--to': `${((step + 1) / cards.length) * 100}%`,
-                animationDuration: `${last ? CARD_MS + 1200 : CARD_MS}ms`,
-              }}
-            />
-          </div>
-        </div>
-      ) : (
-        <div className="trailer__idle">
-          <IconButton icon="play" label={`Lire la bande-annonce de ${film.title}`} variant="solid" onClick={() => setStep(0)} className="trailer__play" />
-          <span className="label">Bande-annonce · 0:{String(seconds).padStart(2, '0')}</span>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* ---------- Répartition des notes ---------- */
-
-function Distribution({ reviews }) {
-  const rows = [5, 4, 3, 2, 1].map((star) => ({ star, count: reviews.filter((r) => Math.ceil(r.rating) === star).length }))
-  const max = Math.max(1, ...rows.map((r) => r.count))
-  return (
-    <ul className="dist" aria-label="Répartition des notes">
-      {rows.map(({ star, count }) => (
-        <li key={star} className="dist__row">
-          <span className="dist__star">{star}<Icon name="star" size={12} filled /></span>
-          <span className="dist__bar"><span style={{ width: `${(count / max) * 100}%` }} /></span>
-          <span className="dist__count">{count}</span>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-/* ---------- Écrire une critique ---------- */
-
-function ReviewForm({ onPublish }) {
-  const [rating, setRating] = useState(0)
-  const [headline, setHeadline] = useState('')
-  const [text, setText] = useState('')
-  const [error, setError] = useState(null)
-  const [done, setDone] = useState(false)
-  const [formKey, setFormKey] = useState(0)
-
-  const reset = () => {
-    setRating(0); setHeadline(''); setText(''); setError(null); setFormKey((k) => k + 1)
-  }
-
-  const submit = (e) => {
-    e.preventDefault()
-    if (!text.trim()) {
-      setError('Écris quelques mots avant de publier.')
-      return
-    }
-    onPublish({
-      id: `me-${Date.now()}`,
-      author: 'Toi',
-      critic: false,
-      rating,
-      date: todayISO(),
-      headline: headline.trim() || undefined,
-      text: text.trim(),
-      likes: 0,
-      comments: 0,
-    })
-    reset()
-    setDone(true)
-  }
-
-  return (
-    <form className="panel compose" onSubmit={submit}>
-      <div className="compose__head">
-        <div>
-          <h3 className="h2">Ton avis compte</h3>
-          <p className="caption muted">
-            {done ? 'Merci ! Ta critique est en ligne, dans l’onglet Public.' : 'Note ce film, au demi-point près.'}
-          </p>
-        </div>
-        <StarRating key={formKey} interactive value={rating} size={28} showValue onChange={(v) => { setRating(v); setDone(false) }} />
-      </div>
-
-      {rating > 0 && (
-        <div className="compose__fields">
-          <TextField label="Titre" placeholder="Une claque visuelle" value={headline} onChange={(e) => setHeadline(e.target.value)} />
-          <TextField
-            label="Ta critique"
-            multiline
-            rows={4}
-            placeholder="Ce qui t’a plu, ce qui t’a moins plu…"
-            value={text}
-            error={error}
-            onChange={(e) => { setText(e.target.value); setError(null) }}
-          />
-          <div className="actions">
-            <Button type="submit" icon="check">Publier ma critique</Button>
-            <Button variant="ghost" onClick={reset}>Annuler</Button>
-          </div>
-        </div>
-      )}
-    </form>
   )
 }

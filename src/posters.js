@@ -43,12 +43,20 @@ const COMPOSITIONS = [
     `<rect x="88" y="204" width="120" height="104" rx="4" fill="${m}"/>`,
 ]
 
-export function posterFor(film) {
-  if (film.poster) return film.poster
-  const draw = COMPOSITIONS[film.composition % COMPOSITIONS.length]
+function render(palette, composition) {
+  const draw = COMPOSITIONS[composition % COMPOSITIONS.length]
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" preserveAspectRatio="xMidYMid slice">` +
-    draw(film.palette) +
+    draw(palette) +
     `</svg>`
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+// Affiche par défaut des films sans image : une pellicule aux couleurs de la salle (surface, line, ember).
+export const DEFAULT_POSTER = render(['#1a1612', '#3a3128', '#c2410c'], 6)
+
+export function posterFor(film) {
+  if (film.poster) return film.poster
+  if (!film.palette) return DEFAULT_POSTER
+  return render(film.palette, film.composition || 0)
 }
