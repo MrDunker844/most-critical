@@ -1,0 +1,60 @@
+<!-- @dsCard height=288 -->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--ground); }
+  .cover { position: relative; width: 960px; height: 288px; overflow: hidden; background: var(--ground); }
+  .art { position: absolute; left: 480px; top: 0; width: 480px; height: 288px; display: block; }
+  .text { position: absolute; left: var(--space-10); bottom: var(--space-10); max-width: 440px; }
+  .name { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 120px; line-height: .9; letter-spacing: 1px; color: var(--ink); }
+  .tag { margin: var(--space-2) 0 0; font-family: var(--font-sans); font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+  .film { fill: var(--surface-raised); }
+  .hole { fill: var(--ground); rx: var(--radius-sm); }
+  .amber { fill: var(--amber); rx: var(--radius-sm); }
+  .soft { fill: var(--amber-soft); rx: var(--radius-sm); }
+  .orange { fill: var(--orange); rx: var(--radius-sm); }
+  .ember { fill: var(--ember); rx: var(--radius-sm); }
+</style>
+</head>
+<body>
+<div class="cover">
+  <svg class="art" viewBox="0 0 480 288" aria-hidden="true">
+    <!--
+      blocks: amber 192×208 (slab), orange 304×64, ember 96×128, amber-soft 96×64, surface-raised 128×288 (film strip)
+      arrangement: one tall amber slab with satellites, blocks bleeding off top, right and bottom; film strip on the left of the zone
+      pattern: literal motif (film strip perforations), chosen because Most Critical is about cinema: 14 holes cut in the ground colour
+      scales: gaps space-4 (16), insets space-2 (8), pitch space-10 (40); corners radius-sm
+    -->
+    <rect class="film" x="32" y="0" width="128" height="288"/>
+    <g>
+      <rect class="hole" x="40" y="8" width="16" height="24"/>
+      <rect class="hole" x="40" y="48" width="16" height="24"/>
+      <rect class="hole" x="40" y="88" width="16" height="24"/>
+      <rect class="hole" x="40" y="128" width="16" height="24"/>
+      <rect class="hole" x="40" y="168" width="16" height="24"/>
+      <rect class="hole" x="40" y="208" width="16" height="24"/>
+      <rect class="hole" x="40" y="248" width="16" height="24"/>
+      <rect class="hole" x="136" y="8" width="16" height="24"/>
+      <rect class="hole" x="136" y="48" width="16" height="24"/>
+      <rect class="hole" x="136" y="88" width="16" height="24"/>
+      <rect class="hole" x="136" y="128" width="16" height="24"/>
+      <rect class="hole" x="136" y="168" width="16" height="24"/>
+      <rect class="hole" x="136" y="208" width="16" height="24"/>
+      <rect class="hole" x="136" y="248" width="16" height="24"/>
+    </g>
+    <rect class="amber" x="176" y="-8" width="192" height="216"/>
+    <rect class="ember" x="384" y="-8" width="104" height="136"/>
+    <rect class="soft" x="384" y="144" width="104" height="64"/>
+    <rect class="orange" x="176" y="224" width="312" height="72"/>
+  </svg>
+  <div class="text">
+    <h1 class="name">Most Critical</h1>
+    <p class="tag">Les films, notés par ceux qui les aiment.</p>
+  </div>
+</div>
+</body>
+</html>

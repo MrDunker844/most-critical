@@ -1,0 +1,101 @@
+{
+  "manifestVersion": 3,
+  "name": "Most Critical",
+  "namespace": "MostCritical",
+  "files": [
+    "components/Avatar/README.md",
+    "components/Badge/README.md",
+    "components/Button/README.md",
+    "components/Chip/README.md",
+    "components/FilmCard/README.md",
+    "components/IconButton/README.md",
+    "components/ReviewCard/README.md",
+    "components/ScoreDial/README.md",
+    "components/StarRating/README.md",
+    "components/Switch/README.md",
+    "components/Tabs/README.md",
+    "components/TextField/README.md",
+    "components/bundle.css",
+    "components/bundle.js",
+    "components/index.d.ts",
+    "tokens.css"
+  ],
+  "libraries": [
+    {
+      "name": "react",
+      "version": "18",
+      "global": "React"
+    },
+    {
+      "name": "react-dom",
+      "version": "18",
+      "global": "ReactDOM"
+    }
+  ],
+  "components": [
+    {
+      "name": "Button",
+      "group": "Actions",
+      "summary": "Bouton d'action standard, en capitales, avec 4 variantes : primary (ambre), secondary (contour), accent (orange) et ghost."
+    },
+    {
+      "name": "IconButton",
+      "group": "Actions",
+      "summary": "Bouton rond contenant seulement une icône. label est obligatoire (accessibilité)."
+    },
+    {
+      "name": "StarRating",
+      "group": "Notation",
+      "summary": "Notation sur 5 étoiles au demi-point près, en lecture ou en interactif."
+    },
+    {
+      "name": "ScoreDial",
+      "group": "Notation",
+      "summary": "Note affichée dans un cadran circulaire sur 270°, comme l'objectif d'un projecteur."
+    },
+    {
+      "name": "Chip",
+      "group": "Sélection",
+      "summary": "Puce de genre ou de filtre, sélectionnable."
+    },
+    {
+      "name": "Badge",
+      "group": "Sélection",
+      "summary": "Petite étiquette de statut, non interactive."
+    },
+    {
+      "name": "TextField",
+      "group": "Formulaires",
+      "summary": "Champ de saisie avec libellé, aide et erreur."
+    },
+    {
+      "name": "Switch",
+      "group": "Formulaires",
+      "summary": "Interrupteur on/off pour les préférences."
+    },
+    {
+      "name": "Tabs",
+      "group": "Navigation",
+      "summary": "Onglets de navigation en Bebas Neue."
+    },
+    {
+      "name": "Avatar",
+      "group": "Navigation",
+      "summary": "Avatar rond avec photo ou initiales en Bebas Neue amber-soft."
+    },
+    {
+      "name": "FilmCard",
+      "group": "Contenu",
+      "summary": "Carte de film : affiche en 2:3, cadran de note, bouton À voir, titre et métadonnées."
+    },
+    {
+      "name": "ReviewCard",
+      "group": "Contenu",
+      "summary": "Carte de critique : auteur, note, titre entre guillemets ambrés, texte et actions (j'aime, commenter, partager)."
+    },
+    {
+      "name": "Icon"
+    }
+  ],
+  "assetGroups": []
+}
