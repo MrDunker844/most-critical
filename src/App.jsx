@@ -13,6 +13,7 @@ export default function App() {
   const [openedId, setOpenedId] = useState(null)
   const [adding, setAdding] = useState(false)
   const [sort, setSort] = useState('')
+  const [allSort, setAllSort] = useState('')
   const [genre, setGenre] = useState(null)
   const [query, setQuery] = useState('')
   const catalog = useOmdbCatalog(query)
@@ -48,6 +49,9 @@ export default function App() {
       reviews: [], myRating: 0, count: 0, score: 0, imdb: d ? d.rating : undefined, fromOmdb: true,
     }
   }), [catalog.items, byImdb, details])
+
+  // Tri de « Tous les films » sur les films déjà chargés. Les valeurs inconnues (année, note IMDb) vont en fin de liste.
+  const allShown = sortCatalog(allFilms, allSort)
 
   const genres = [...new Set(films.flatMap((f) => f.genres))].sort((a, b) => a.localeCompare(b, 'fr'))
   const filtered = genre ? films.filter((f) => f.genres.includes(genre)) : films
@@ -162,19 +166,22 @@ export default function App() {
             <p className="caption muted">Tout le catalogue IMDb. Note un film ou écris une critique : il rejoint « Mes films ».</p>
           </div>
 
-          <div className="catalog__search">
-            <TextField
-              id="catalog-search"
-              label="Chercher un film"
-              placeholder="Titre en anglais ou en français, ex. Inception"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+          <div className="catalog__bar">
+            <div className="catalog__search">
+              <TextField
+                id="catalog-search"
+                label="Chercher un film"
+                placeholder="Titre en anglais ou en français, ex. Inception"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+            <SortSelect value={allSort} onChange={setAllSort} options={CATALOG_SORTS} />
           </div>
 
           {!query.trim() && catalog.items.length > 0 && <p className="caption muted">À l’affiche : quelques classiques. Cherche un titre pour voir les autres.</p>}
 
-          {allFilms.length > 0 && <FilmGrid films={allFilms} onOpen={open} onRate={rate} />}
+          {allFilms.length > 0 && <FilmGrid films={allShown} onOpen={open} onRate={rate} />}
 
           <p className="caption muted" aria-live="polite">
             {catalog.status === 'loading' ? 'Chargement des films…'
@@ -197,16 +204,7 @@ export default function App() {
 
           {films.length > 0 ? (<>
             <div className="catalog__tools">
-              <label className="sort">
-                <span className="mc-field__label">Trier par</span>
-                <span className="mc-field__box select">
-                  <select className="mc-field__input" value={sort} onChange={(e) => setSort(e.target.value)}>
-                    <option value="">—</option>
-                    <option value="best">Mieux notés</option>
-                    <option value="worst">Moins bien notés</option>
-                  </select>
-                </span>
-              </label>
+              <SortSelect value={sort} onChange={setSort} options={MY_SORTS} />
 
               <div className="chips" role="group" aria-label="Filtrer par catégorie">
                 <Chip selected={!genre} onClick={() => setGenre(null)}>Toutes les catégories</Chip>
@@ -233,6 +231,50 @@ export default function App() {
 
       <AddFilmDialog open={adding} onClose={() => setAdding(false)} onAdd={addFilm} knownIds={knownIds} />
     </>
+  )
+}
+
+/* ---------- Tri ---------- */
+
+const MY_SORTS = [['', '—'], ['best', 'Mieux notés'], ['worst', 'Moins bien notés']]
+
+const CATALOG_SORTS = [
+  ['', 'Pertinence'],
+  ['title', 'Titre (A → Z)'],
+  ['title-desc', 'Titre (Z → A)'],
+  ['newest', 'Plus récents'],
+  ['oldest', 'Plus anciens'],
+  ['imdb', 'Note IMDb'],
+  ['best', 'Mieux notés sur le site'],
+]
+
+const byTitle = (a, b) => a.title.localeCompare(b.title, 'fr')
+// Compare deux valeurs, celles qui manquent en dernier.
+const missingLast = (x, y, desc) => (x == null) - (y == null) || (x == null ? 0 : desc ? y - x : x - y)
+
+function sortCatalog(films, sort) {
+  if (!sort) return films
+  const cmp = {
+    title: byTitle,
+    'title-desc': (a, b) => byTitle(b, a),
+    newest: (a, b) => missingLast(a.year, b.year, true) || byTitle(a, b),
+    oldest: (a, b) => missingLast(a.year, b.year, false) || byTitle(a, b),
+    imdb: (a, b) => missingLast(typeof a.imdb === 'number' ? a.imdb : null, typeof b.imdb === 'number' ? b.imdb : null, true) || byTitle(a, b),
+    best: (a, b) => missingLast(a.count ? a.score : null, b.count ? b.score : null, true) || byTitle(a, b),
+  }[sort]
+  return [...films].sort(cmp)
+}
+
+function SortSelect({ value, onChange, options }) {
+  return (
+    <label className="sort">
+      <span className="mc-field__label">Trier par</span>
+      <span className="mc-field__box select">
+        <select className="mc-field__input" value={value} onChange={(e) => onChange(e.target.value)}>
+          {options.map(([v, text]) => <option key={v} value={v}>{text}</option>)}
+        </select>
+      </span>
+    </label>
   )
 }
 
