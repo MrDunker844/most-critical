@@ -82,6 +82,21 @@ a { color: var(--orange); }
 .tile__imdb { margin: 4px 0 0; font: var(--text-caption); color: var(--ink-muted); }
 .tile__imdb b { padding: 0 4px; border-radius: 3px; background: #f5c518; color: #000; font-weight: 700; }
 .tile.is-unrated .mc-film__dial { display: none; }
+
+/* Film noté 5 étoiles par le visiteur : contour doré (amber, la couleur de la note) et une vibration
+   brève qui revient toutes les quelques secondes. Seule l'affiche bouge, pour que les étoiles restent faciles à cliquer. */
+.tile.is-loved .mc-poster,
+.tile.is-loved:hover .mc-poster { box-shadow: 0 0 0 2px var(--amber), var(--glow); }
+.tile.is-loved .mc-film__media { animation: mc-buzz 2.8s ease-in-out infinite; }
+@keyframes mc-buzz {
+  0%, 16%, 100% { transform: none; }
+  2% { transform: translateX(-2px) rotate(-1.2deg); }
+  4% { transform: translateX(2px) rotate(1.2deg); }
+  6% { transform: translateX(-2px) rotate(-1deg); }
+  8% { transform: translateX(2px) rotate(1deg); }
+  10% { transform: translateX(-1px) rotate(-.5deg); }
+  12% { transform: translateX(1px) rotate(.5deg); }
+}
 /* Boutons du design system qui ne sont pas dans le backlog. */
 .mc-film__save, .mc-review__foot { display: none; }
 
@@ -179,6 +194,8 @@ a { color: var(--orange); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  /* Une animation infinie raccourcie à .01ms tremblerait à chaque image : on la coupe, le contour doré reste. */
+  .tile.is-loved .mc-film__media { animation: none; }
 }
 
 /* ---------- Responsive ---------- */

@@ -286,7 +286,7 @@ function FilmGrid({ films, onOpen, onRate }) {
 
 function FilmTile({ film, onOpen, onRate }) {
   return (
-    <li className={cx('tile', !film.count && 'is-unrated')}>
+    <li className={cx('tile', !film.count && 'is-unrated', film.myRating === 5 && 'is-loved')}>
       <FilmCard title={film.title} score={film.score} poster={film.poster} year={film.year} genres={film.genres} />
       <button type="button" className="tile__open" onClick={onOpen}>
         <span className="sr-only">Voir les critiques de {film.title}</span>
