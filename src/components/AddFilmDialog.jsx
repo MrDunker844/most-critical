@@ -113,29 +113,21 @@ function AddFilmForm({ onCancel, onAdd, knownIds = new Set() }) {
     if (!ok) setSaveError('Le navigateur n’a pas pu enregistrer le film (stockage plein ou désactivé). Essaie sans affiche ou avec une image plus légère.')
   }
 
-  const posterCaption = loading
-    ? 'Préparation de l’image…'
-    : poster ? 'Aperçu de ton affiche.'
-    : film?.poster ? 'Affiche officielle du film. Tu peux la remplacer.'
-    : film ? 'Ce film n’a pas d’affiche officielle : ajoute la tienne ou garde celle-ci.'
-    : 'Choisis un film pour récupérer son affiche, ou importe la tienne.'
-
   return (
     <form className="modal__inner form" onSubmit={submit} noValidate>
       <IconButton icon="plus" label="Fermer" variant="ghost" className="modal__close" onClick={onCancel} />
       <header className="form__head">
         <h2 id="add-title" className="h1">Ajouter un film</h2>
-        <p className="caption muted">Seuls les films qui existent peuvent être ajoutés. Les champs marqués d’un * sont obligatoires.</p>
       </header>
 
       <div className="form__grid">
-        <Field id="film-poster" label="Affiche" error={errors.poster} hint={shownPoster ? null : 'JPG, PNG ou WebP, 10 Mo max.'} className="poster-field">
+        <Field id="film-poster" label="Affiche" error={errors.poster} className="poster-field">
           <div className="poster-field__row">
             <div className="mc-poster poster-field__preview">
               <img src={shownPoster || DEFAULT_POSTER} alt={shownPoster ? 'Aperçu de l’affiche' : 'Affiche par défaut'} />
             </div>
             <div className="poster-field__actions">
-              <p className="caption muted">{posterCaption}</p>
+              {loading && <p className="caption muted">Préparation de l’image…</p>}
               <Button variant="secondary" size="sm" icon="plus" onClick={() => fileRef.current?.click()} disabled={loading}>
                 {shownPoster ? 'Changer l’image' : 'Choisir une image'}
               </Button>
@@ -260,7 +252,7 @@ function FilmSearch({ error, busy, knownIds, onPick }) {
     busy ? 'Récupération de la fiche du film…'
     : status === 'loading' ? 'Recherche…'
     : status === 'error' ? 'La recherche ne répond pas. Réessaie dans un instant.'
-    : status === 'done' && !results.length ? `Aucun film trouvé pour « ${q} ». Essaie le titre original ou anglais.`
+    : status === 'done' && !results.length ? `Aucun film trouvé pour « ${q} ».`
     : null
 
   return (
@@ -282,7 +274,7 @@ function FilmSearch({ error, busy, knownIds, onPick }) {
           aria-autocomplete="list"
           aria-activedescendant={showPanel && active >= 0 ? `${listId}-${active}` : undefined}
           aria-invalid={!!error}
-          aria-describedby="film-search-msg"
+          aria-describedby={error ? "film-search-msg" : undefined}
           onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
           onBlur={() => setOpen(false)}
@@ -322,10 +314,12 @@ function FilmSearch({ error, busy, knownIds, onPick }) {
         </div>
       )}
       </div>
-      <p id="film-search-msg" className="mc-field__msg">
-        {error && <Icon name="alert" size={14} />}
-        {error || 'Choisis le film dans la liste : le titre, l’année, le synopsis et l’affiche sont remplis pour toi.'}
-      </p>
+      {error && (
+        <p id="film-search-msg" className="mc-field__msg">
+          <Icon name="alert" size={14} />
+          {error}
+        </p>
+      )}
     </div>
   )
 }

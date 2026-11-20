@@ -163,7 +163,6 @@ export default function App() {
         <section className="section" aria-labelledby="all-title">
           <div className="catalog__head">
             <h1 id="all-title" className="h1">Tous les films</h1>
-            <p className="caption muted">Tout le catalogue IMDb. Note un film ou écris une critique : il rejoint « Mes films ».</p>
           </div>
 
           <div className="catalog__bar">
@@ -178,8 +177,6 @@ export default function App() {
             </div>
             <SortSelect value={allSort} onChange={setAllSort} options={CATALOG_SORTS} />
           </div>
-
-          {!query.trim() && catalog.items.length > 0 && <p className="caption muted">À l’affiche : quelques classiques. Cherche un titre pour voir les autres.</p>}
 
           {allFilms.length > 0 && <FilmGrid films={allShown} onOpen={open} onRate={rate} />}
 
@@ -199,10 +196,9 @@ export default function App() {
         <section className="section" aria-labelledby="mine-title">
           <div className="catalog__head">
             <h2 id="mine-title" className="h1">Mes films</h2>
-            <p className="caption muted">Les films que tu as notés, critiqués ou ajoutés.</p>
           </div>
 
-          {films.length > 0 ? (<>
+          {films.length > 0 && (<>
             <div className="catalog__tools">
               <SortSelect value={sort} onChange={setSort} options={MY_SORTS} />
 
@@ -219,11 +215,7 @@ export default function App() {
             ) : (
               <p className="caption muted">Aucun de tes films dans cette catégorie.</p>
             )}
-          </>) : (
-            <div className="empty empty--small">
-              <p className="muted">Note un film ou écris une critique : il apparaîtra ici.</p>
-            </div>
-          )}
+          </>)}
         </section>
       </main>
 
