@@ -1,0 +1,16 @@
+<!-- @dsCard group="Contenu" height=470 -->
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font-sans)}
+#root{padding:24px;display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.col{display:flex;flex-direction:column;gap:16px;width:100%}
+.row{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.cap{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-muted);width:100%}
+</style></head><body><div id="root"></div>
+<script>
+const h=React.createElement, B=window.MostCritical, F=React.Fragment;
+ReactDOM.createRoot(document.getElementById('root')).render(h('div',{style:{display:'grid',gridTemplateColumns:'repeat(3, 180px)',gap:'16px'}},
+ h(B.FilmCard,{seed:0,title:'Le Dernier Projecteur',year:2026,duration:'2 h 04',director:'A. Rocher',score:4.6,badge:'Coup de cœur',genres:['Drame','Mystère']}),
+ h(B.FilmCard,{seed:1,title:'Orange Mécanique 2099',year:2025,duration:'1 h 52',score:3.7,genres:['SF']}),
+ h(B.FilmCard,{seed:2,title:'Minuit, Rue Ambre',year:2026,duration:'1 h 38',score:1.8,genres:['Thriller']})));
+</script></body></html>

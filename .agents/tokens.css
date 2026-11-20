@@ -1,0 +1,91 @@
+/* Most Critical — generated from tokens.json */
+:root, [data-theme="dark"] {
+  --ground: #0f0d0b; /* Fond de page, comme une salle de cinéma éteinte. */
+  --surface: #1a1612; /* Cartes de film, listes de critiques, barres de navigation. */
+  --surface-raised: #262019; /* Survol, menus, champs de saisie, bloc de pellicule sur la couverture. */
+  --line: #3a3128; /* Filets de séparation et bordures de cartes (1px). */
+  --ink: #f5ecdf; /* Texte principal sur ground, surface et surface-raised (≥14:1). */
+  --ink-muted: #b3a493; /* Métadonnées (année, durée, réalisateur, date) et notes basses (≤ 2/5). 7:1 sur surface. */
+  --amber: #ffb627; /* Couleur de marque. Étoiles de notation, bouton principal, onglet actif. Texte en ink-on-amber dessus. */
+  --amber-soft: #ffd98a; /* Notes partielles (demi-étoile), surbrillance de citation, puces de genre au survol. */
+  --orange: #ff7a1a; /* Accent : liens, badge « Coup de cœur », focus ring, et messages d'erreur (toujours avec une icône et un texte). 3:1+ sur tous les fonds. */
+  --ember: #c2410c; /* Grands aplats décoratifs et fond de bandeaux uniquement. 3.5:1 sur ground : jamais pour du texte courant. */
+  --ink-on-amber: #1a1206; /* Texte et icônes sur amber, amber-soft et orange (≥7:1). */
+  --glow: 0 0 0 1px rgba(255,182,39,0.45), 0 8px 32px rgba(255,182,39,0.28); /* Survol du bouton principal et des affiches : la lumière de l'écran. */
+}
+:root {
+  --space-1: 4px; /* Écart entre étoiles, entre icône et libellé. */
+  --space-2: 8px; /* Espacement interne des puces et badges. */
+  --space-4: 16px; /* Marge interne des cartes, gouttière de la grille d'affiches. */
+  --space-6: 24px; /* Écart entre sections, marges de page mobile. */
+  --space-10: 40px; /* Grandes respirations : héros, en-têtes de page. */
+  --radius-sm: 4px; /* Affiches de film, perforations, badges. */
+  --radius-md: 10px; /* Cartes, champs, boutons. */
+  --radius-pill: 999px; /* Puces de genre, avatars, interrupteurs. */
+  --font-display: "Bebas Neue", Impact, "Arial Narrow", sans-serif;
+  --font-sans: Inter, system-ui, -apple-system, sans-serif;
+  --text-display: 400 64px/60px var(--font-display); /* Titre de film en héros, page d'accueil. */
+  --text-h1: 400 40px/40px var(--font-display); /* Titre de page. */
+  --text-h2: 400 28px/30px var(--font-display); /* Titre de section. */
+  --text-score: 400 36px/36px var(--font-display); /* Note chiffrée d'un film, en amber. */
+  --text-title: 600 18px/24px var(--font-sans); /* Titre de film dans une carte. */
+  --text-body: 400 15px/23px var(--font-sans); /* Corps des critiques. */
+  --text-label: 600 13px/16px var(--font-sans); /* Genres, onglets, boutons (en capitales). */
+  --text-caption: 400 12px/16px var(--font-sans); /* Métadonnées en ink-muted. */
+}
+.display {
+  font-family: var(--font-display);
+  font-size: 64px;
+  line-height: 60px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+.h1 {
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 40px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+.h2 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 30px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+.score {
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 36px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.title {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.body {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 23px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.label {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+}
+.caption {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
