@@ -6,13 +6,7 @@ export const formatDate = (iso) => dateFormat.format(new Date(iso))
 export const average = (notes) =>
   notes.length ? Math.round((notes.reduce((sum, n) => sum + n, 0) / notes.length) * 10) / 10 : 0
 
-export const normalize = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-
-export const meta = (film) => [film.year, film.duration, film.director].filter(Boolean).join(' · ')
-
 export const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`
 
 // Les dates sont en ISO (« 2026-11-12 » ou « 2026-11-20T15:04:05.000Z ») : l'ordre texte est l'ordre chronologique.
 export const byNewest = (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)
-
-export const newId = (prefix) => `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`

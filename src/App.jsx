@@ -1,22 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Badge, Button, Chip, FilmCard, Icon, StarRating, Tabs, TextField } from './ds'
-import { FILMS } from './data/films.js'
+import { Button, Chip, FilmCard, TextField } from './ds'
 import { posterFor } from './posters.js'
 import { loadStore, saveStore } from './store.js'
-import { average, byNewest, cx, meta, newId, normalize, plural } from './lib.js'
+import { average, byNewest, cx, plural } from './lib.js'
 import { RateStars } from './components/fields.jsx'
 import { FilmModal } from './components/FilmModal.jsx'
 import { AddFilmDialog } from './components/AddFilmDialog.jsx'
+import { useOmdbCatalog } from './catalog.js'
 
 export default function App() {
   const [store, setStore] = useState(loadStore)
-  const [query, setQuery] = useState('')
-  const [genre, setGenre] = useState(null)
-  const [view, setView] = useState('all')
-  const [opened, setOpened] = useState(null) // { id, play, write }
+  const [openedId, setOpenedId] = useState(null)
   const [adding, setAdding] = useState(false)
-  const [justAdded, setJustAdded] = useState(null)
-  const [toast, setToast] = useState(null)
+  const [sort, setSort] = useState('')
+  const [genre, setGenre] = useState(null)
+  const [query, setQuery] = useState('')
+  const catalog = useOmdbCatalog(query)
+  const [details, setDetails] = useState({}) // fiches OMDb complètes déjà chargées : { [imdbId]: movie }
 
   // Enregistre dans le navigateur puis met à jour l'écran.
   // `strict` : si l'enregistrement échoue, on n'applique pas le changement (pour ne pas promettre un film qui disparaîtra).
@@ -26,67 +26,112 @@ export default function App() {
     return ok
   }
 
-  // Films d'exemple + films ajoutés, avec leurs notes : critiques (exemple et visiteur) + note du visiteur.
+  // « Mes films » : films ajoutés, notés ou critiqués par le visiteur, avec leurs notes.
   const films = useMemo(() => {
-    const all = [...store.films.map((f) => ({ ...f, user: true })), ...FILMS]
-    return all.map((f) => {
+    return store.films.map((f) => {
       const reviews = [...(f.reviews || []), ...(store.reviews[f.id] || [])].sort(byNewest)
       const myRating = store.ratings[f.id] || 0
       const notes = [...reviews.map((r) => r.rating), ...(myRating ? [myRating] : [])]
-      return { ...f, poster: posterFor(f), reviews, myRating, notes, count: notes.length, score: average(notes), imdb: store.imdb[f.id] }
+      return { ...f, poster: posterFor(f), reviews, myRating, count: notes.length, score: average(notes), imdb: store.imdb[f.id] }
     })
   }, [store])
 
-  const genres = useMemo(() => [...new Set(films.flatMap((f) => f.genres))].sort((a, b) => a.localeCompare(b, 'fr')), [films])
+  // « Tous les films » : résultats OMDb. Un film déjà dans « Mes films » s'affiche avec ses notes.
+  const byImdb = useMemo(() => new Map(films.filter((f) => f.imdbId).map((f) => [f.imdbId, f])), [films])
+  const allFilms = useMemo(() => catalog.items.map((r) => {
+    if (byImdb.has(r.id)) return byImdb.get(r.id)
+    const d = details[r.id] || (r.genres ? r : null)
+    return {
+      id: `omdb-${r.id}`, imdbId: r.id, title: r.title, year: r.year || undefined,
+      poster: posterFor({ poster: r.poster }), rawPoster: r.poster,
+      genres: d?.genres || [], synopsis: d?.plot || '',
+      reviews: [], myRating: 0, count: 0, score: 0, imdb: d ? d.rating : undefined, fromOmdb: true,
+    }
+  }), [catalog.items, byImdb, details])
 
-  const q = normalize(query.trim())
-  const matching = films.filter(
-    (f) =>
-      (!genre || f.genres.includes(genre)) &&
-      (!q || normalize(`${f.title} ${f.director || ''} ${(f.cast || []).join(' ')}`).includes(q)),
+  const genres = [...new Set(films.flatMap((f) => f.genres))].sort((a, b) => a.localeCompare(b, 'fr'))
+  const filtered = genre ? films.filter((f) => f.genres.includes(genre)) : films
+
+  // Tri par note : films sans note en fin de liste, à note égale ordre alphabétique.
+  const myFilms = !sort ? filtered : [...filtered].sort((a, b) =>
+    (!a.count - !b.count) ||
+    (sort === 'best' ? b.score - a.score : a.score - b.score) ||
+    a.title.localeCompare(b.title, 'fr'),
   )
-  const views = {
-    all: matching,
-    top: [...matching].sort((a, b) => b.score - a.score || b.count - a.count),
-    favorites: matching.filter((f) => f.badge),
-  }
-  const shown = views[view]
 
-  const featured = films.find((f) => f.featured) || films[0]
-  const current = opened && films.find((f) => f.id === opened.id)
+  const current = films.find((f) => f.id === openedId) || allFilms.find((f) => f.id === openedId)
 
-  const open = (film, opts = {}) => setOpened({ id: film.id, ...opts })
-
-  const rate = (filmId, rating) => persist({ ...store, ratings: { ...store.ratings, [filmId]: rating } })
-
-  const addReview = (filmId, review) =>
-    persist({
-      ...store,
-      pseudo: review.author,
-      reviews: { ...store.reviews, [filmId]: [review, ...(store.reviews[filmId] || [])] },
-    })
-
-  const addFilm = (data) => {
-    const film = { id: newId('film'), createdAt: new Date().toISOString(), cast: [], reviews: [], ...data }
-    const ok = persist({ ...store, films: [film, ...store.films] }, { strict: true })
-    if (!ok) return false
-    setAdding(false)
-    setQuery('')
-    setGenre(null)
-    setView('all')
-    setJustAdded(film.id)
-    setToast(`« ${film.title} » a été ajouté.`)
-    requestAnimationFrame(() => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' }))
-    return true
+  // Charge la fiche complète (genres, synopsis, note IMDb) d'un film OMDb.
+  const loadDetails = (imdbId) => {
+    if (details[imdbId]) return Promise.resolve(details[imdbId])
+    return fetch(`/api/movie?${new URLSearchParams({ id: imdbId })}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((movie) => {
+        if (movie) setDetails((d) => ({ ...d, [imdbId]: movie }))
+        return movie
+      })
   }
 
-  // Récupère la note IMDb des films qui n'en ont pas encore (films existants et films ajoutés).
+  const open = (film) => {
+    setOpenedId(film.id)
+    if (film.fromOmdb && !film.synopsis) loadDetails(film.imdbId).catch(() => {})
+  }
+
+  // Un film OMDb rejoint « Mes films » dès qu'on le note ou qu'on le critique.
+  const withFilm = (s, film) => {
+    if (!film.fromOmdb || s.films.some((f) => f.id === film.id)) return s
+    const saved = {
+      id: film.id, imdbId: film.imdbId, title: film.title, year: film.year,
+      genres: film.genres, synopsis: film.synopsis, poster: film.rawPoster || undefined, reviews: [],
+    }
+    if (!film.genres.length) {
+      // Fiche incomplète (résultat de recherche) : on la complète en arrière-plan.
+      loadDetails(film.imdbId).then((m) => m && setStore((cur) => {
+        const next = {
+          ...cur,
+          films: cur.films.map((f) => (f.id === film.id ? { ...f, genres: m.genres, synopsis: f.synopsis || m.plot } : f)),
+          imdb: { ...cur.imdb, [film.id]: m.rating },
+        }
+        saveStore(next)
+        return next
+      })).catch(() => {})
+    }
+    const imdb = film.imdb !== undefined ? { ...s.imdb, [film.id]: film.imdb } : s.imdb
+    return { ...s, films: [saved, ...s.films], imdb }
+  }
+
+  const findFilm = (filmId) => films.find((f) => f.id === filmId) || allFilms.find((f) => f.id === filmId)
+
+  const rate = (film, rating) => {
+    const s = withFilm(store, film)
+    persist({ ...s, ratings: { ...s.ratings, [film.id]: rating } })
+  }
+
+  const addReview = (filmId, review) => {
+    const film = findFilm(filmId)
+    const s = film ? withFilm(store, film) : store
+    persist({ ...s, reviews: { ...s.reviews, [filmId]: [review, ...(s.reviews[filmId] || [])] } })
+  }
+
+  // Films ajoutés depuis OMDb : on garde leur identifiant IMDb pour ne pas les ajouter deux fois.
+  const knownIds = useMemo(() => new Set(store.films.map((f) => f.imdbId).filter(Boolean)), [store.films])
+
+  const addFilm = ({ imdbRating, ...data }) => {
+    const film = { id: `film-${Date.now().toString(36)}`, reviews: [], ...data }
+    // La fiche OMDb donne déjà la note IMDb : pas besoin de la redemander.
+    const imdb = imdbRating !== undefined ? { ...store.imdb, [film.id]: imdbRating } : store.imdb
+    const ok = persist({ ...store, films: [film, ...store.films], imdb }, { strict: true })
+    if (ok) setAdding(false)
+    return ok
+  }
+
+  // Récupère la note IMDb des films qui n'en ont pas encore.
   // Si l'API ne répond pas, rien n'est enregistré : on réessaiera au prochain chargement.
   const asked = useRef(new Set())
   useEffect(() => {
     films.filter((f) => !(f.id in store.imdb) && !asked.current.has(f.id)).forEach((f) => {
       asked.current.add(f.id)
-      fetch(`/api/imdb?${new URLSearchParams({ title: f.title, year: f.year || '' })}`)
+      fetch(`/api/imdb?${new URLSearchParams(f.imdbId ? { id: f.imdbId } : { title: f.title, year: f.year || '' })}`)
         .then((res) => (res.ok ? res.json() : Promise.reject()))
         .then(({ rating }) =>
           setStore((s) => {
@@ -99,176 +144,137 @@ export default function App() {
     })
   }, [films, store.imdb])
 
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 4000)
-    return () => clearTimeout(t)
-  }, [toast])
-
   return (
     <>
       <header className="topbar">
         <div className="page topbar__inner">
-          <a className="brand" href="#">Most Critical</a>
-          <div className="topbar__search">
-            <TextField
-              icon="search"
-              placeholder="Un film, un·e réalisateur·rice, un·e acteur·rice…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
+          <span className="brand">Most Critical</span>
           <Button variant="secondary" icon="plus" className="topbar__add" onClick={() => setAdding(true)}>
             Ajouter un film
           </Button>
         </div>
       </header>
 
-      <main>
-        <Hero film={featured} onOpen={open} />
-
-        <section id="catalog" className="page catalog" aria-labelledby="catalog-title">
+      <main className="page catalog" aria-label="Catalogue">
+        <section className="section" aria-labelledby="all-title">
           <div className="catalog__head">
-            <h2 id="catalog-title" className="h1">Les films</h2>
-            <p className="caption muted">Les films, notés par ceux qui les aiment.</p>
+            <h1 id="all-title" className="h1">Tous les films</h1>
+            <p className="caption muted">Tout le catalogue IMDb. Note un film ou écris une critique : il rejoint « Mes films ».</p>
           </div>
 
-          <Tabs
-            value={view}
-            onChange={setView}
-            items={[
-              { value: 'all', label: 'À l’affiche', count: views.all.length },
-              { value: 'top', label: 'Mieux notés' },
-              { value: 'favorites', label: 'Coups de cœur', count: views.favorites.length },
-            ]}
-          />
-
-          <div className="chips" role="group" aria-label="Filtrer par genre">
-            <Chip selected={!genre} onClick={() => setGenre(null)}>Tous les genres</Chip>
-            {genres.map((g) => (
-              <Chip key={g} selected={genre === g} onClick={() => setGenre(genre === g ? null : g)}>
-                {g}
-              </Chip>
-            ))}
+          <div className="catalog__search">
+            <TextField
+              id="catalog-search"
+              label="Chercher un film"
+              placeholder="Titre en anglais ou en français, ex. Inception"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
           </div>
 
-          {shown.length ? (
-            <ul className="grid">
-              {shown.map((film) => (
-                <FilmTile
-                  key={film.id}
-                  film={film}
-                  isNew={film.id === justAdded}
-                  onOpen={() => open(film)}
-                  onRate={(n) => rate(film.id, n)}
-                />
-              ))}
-            </ul>
-          ) : (
-            <div className="empty">
-              <Icon name="film" size={32} />
-              <p className="title">Aucun film ne correspond.</p>
-              <p className="caption muted">Essaie un autre genre ou une autre recherche.</p>
-              <Button variant="secondary" size="sm" onClick={() => { setQuery(''); setGenre(null) }}>
-                Tout afficher
-              </Button>
+          {!query.trim() && catalog.items.length > 0 && <p className="caption muted">À l’affiche : quelques classiques. Cherche un titre pour voir les autres.</p>}
+
+          {allFilms.length > 0 && <FilmGrid films={allFilms} onOpen={open} onRate={rate} />}
+
+          <p className="caption muted" aria-live="polite">
+            {catalog.status === 'loading' ? 'Chargement des films…'
+              : catalog.status === 'error' ? 'Impossible de joindre IMDb pour l’instant. Réessaie dans un moment.'
+              : query.trim() && !catalog.items.length ? `Aucun film trouvé pour « ${query.trim()} ».`
+              : query.trim() ? `${plural(catalog.total, 'film trouvé', 'films trouvés')}`
+              : ''}
+          </p>
+
+          {catalog.hasMore && catalog.status !== 'loading' && (
+            <Button variant="secondary" className="catalog__more" onClick={catalog.loadMore}>Voir plus de films</Button>
+          )}
+        </section>
+
+        <section className="section" aria-labelledby="mine-title">
+          <div className="catalog__head">
+            <h2 id="mine-title" className="h1">Mes films</h2>
+            <p className="caption muted">Les films que tu as notés, critiqués ou ajoutés.</p>
+          </div>
+
+          {films.length > 0 ? (<>
+            <div className="catalog__tools">
+              <label className="sort">
+                <span className="mc-field__label">Trier par</span>
+                <span className="mc-field__box select">
+                  <select className="mc-field__input" value={sort} onChange={(e) => setSort(e.target.value)}>
+                    <option value="">—</option>
+                    <option value="best">Mieux notés</option>
+                    <option value="worst">Moins bien notés</option>
+                  </select>
+                </span>
+              </label>
+
+              <div className="chips" role="group" aria-label="Filtrer par catégorie">
+                <Chip selected={!genre} onClick={() => setGenre(null)}>Toutes les catégories</Chip>
+                {genres.map((g) => (
+                  <Chip key={g} selected={genre === g} onClick={() => setGenre(genre === g ? null : g)}>{g}</Chip>
+                ))}
+              </div>
+            </div>
+
+            {myFilms.length ? (
+              <FilmGrid films={myFilms} onOpen={open} onRate={rate} />
+            ) : (
+              <p className="caption muted">Aucun de tes films dans cette catégorie.</p>
+            )}
+          </>) : (
+            <div className="empty empty--small">
+              <p className="muted">Note un film ou écris une critique : il apparaîtra ici.</p>
             </div>
           )}
         </section>
       </main>
 
-      <footer className="page footer">
-        <span className="brand brand--sm">Most Critical</span>
-        <span className="caption muted">
-          Films et critiques d’exemple fictifs. Tes films, notes et critiques sont enregistrés dans ce navigateur.
-        </span>
-      </footer>
+      <FilmModal film={current} onClose={() => setOpenedId(null)} onAddReview={addReview} />
 
-      <FilmModal
-        film={current}
-        autoplay={!!opened?.play}
-        startWriting={!!opened?.write}
-        pseudo={store.pseudo}
-        onClose={() => setOpened(null)}
-        onRate={rate}
-        onAddReview={addReview}
-      />
-
-      <AddFilmDialog open={adding} onClose={() => setAdding(false)} onAdd={addFilm} />
-
-      <div className="toast-region" role="status" aria-live="polite">
-        {toast && <p className="toast"><Icon name="check" size={18} />{toast}</p>}
-      </div>
+      <AddFilmDialog open={adding} onClose={() => setAdding(false)} onAdd={addFilm} knownIds={knownIds} />
     </>
+  )
+}
+
+/* ---------- Grille de films ---------- */
+
+function FilmGrid({ films, onOpen, onRate }) {
+  return (
+    <ul className="grid">
+      {films.map((film) => (
+        <FilmTile key={film.id} film={film} onOpen={() => onOpen(film)} onRate={(n) => onRate(film, n)} />
+      ))}
+    </ul>
   )
 }
 
 /* ---------- Carte de film dans la grille ---------- */
 
-function FilmTile({ film, isNew, onOpen, onRate }) {
+function FilmTile({ film, onOpen, onRate }) {
   return (
-    <li className={cx('tile', isNew && 'is-new', !film.count && 'is-unrated')}>
-      <FilmCard
-        title={film.title}
-        score={film.score}
-        poster={film.poster}
-        year={film.year}
-        duration={film.duration}
-        director={film.director}
-        genres={film.genres}
-        badge={film.badge}
-      />
+    <li className={cx('tile', !film.count && 'is-unrated')}>
+      <FilmCard title={film.title} score={film.score} poster={film.poster} year={film.year} genres={film.genres} />
       <button type="button" className="tile__open" onClick={onOpen}>
-        <span className="sr-only">Voir les détails de {film.title}</span>
+        <span className="sr-only">Voir les critiques de {film.title}</span>
       </button>
       <div className="tile__rate">
         <RateStars value={film.myRating} onChange={onRate} size={18} label={`Noter ${film.title}`} />
         <span className="tile__avg" aria-live="polite">
           {film.count ? (
             <>
-              <b className={film.score <= 2 ? 'is-low' : undefined}>{film.score.toFixed(1)}</b>
+              <b>{film.score.toFixed(1)}</b>
               {' · '}{plural(film.count, 'note', 'notes')}
             </>
           ) : (
-            'Pas encore de note'
+            'Pas encore noté'
           )}
         </span>
       </div>
-      <p className="tile__imdb">
-        {typeof film.imdb === 'number' ? <><b>IMDb</b> {film.imdb.toFixed(1)}/10</> : 'Note IMDb indisponible'}
-      </p>
+      {film.imdb !== undefined && (
+        <p className="tile__imdb">
+          {typeof film.imdb === 'number' ? <><b>IMDb</b> {film.imdb.toFixed(1)}/10</> : 'Note IMDb indisponible'}
+        </p>
+      )}
     </li>
-  )
-}
-
-/* ---------- Héros : le film à l'affiche ---------- */
-
-function Hero({ film, onOpen }) {
-  return (
-    <section className="hero" aria-labelledby="hero-title">
-      <img className="hero__bg" src={film.poster} alt="" />
-      <div className="page hero__inner">
-        <div className="hero__text">
-          <Badge tone="soft">À l’affiche cette semaine</Badge>
-          <h2 id="hero-title" className="display hero__title">{film.title}</h2>
-          <p className="caption muted">{meta(film)}</p>
-          <p className="body hero__pitch">{film.synopsis}</p>
-          <div className="hero__rating">
-            <StarRating value={Math.round(film.score * 2) / 2} size={22} />
-            <span className="score">{film.score.toFixed(1)}</span>
-            <span className="caption muted">{plural(film.count, 'note', 'notes')}</span>
-          </div>
-          <div className="actions">
-            <Button icon="play" size="lg" onClick={() => onOpen(film, { play: true })}>Voir la bande-annonce</Button>
-            <Button variant="secondary" size="lg" icon="comment" onClick={() => onOpen(film, { write: true })}>
-              Écrire une critique
-            </Button>
-          </div>
-        </div>
-        <button type="button" className="hero__poster" onClick={() => onOpen(film)}>
-          <span className="mc-poster"><img src={film.poster} alt={`Affiche de ${film.title}`} /></span>
-        </button>
-      </div>
-    </section>
   )
 }
