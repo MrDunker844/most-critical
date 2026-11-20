@@ -104,6 +104,8 @@ a { color: var(--orange); }
 .tile__avg { font: var(--text-caption); color: var(--ink-muted); white-space: nowrap; }
 .tile__avg b { font-family: var(--font-display); font-weight: 400; font-size: 18px; letter-spacing: .3px; color: var(--amber); }
 .tile__avg b.is-low { color: var(--ink-muted); }
+.tile__imdb { margin: 4px 0 0; font: var(--text-caption); color: var(--ink-muted); }
+.tile__imdb b { padding: 0 4px; border-radius: 3px; background: #f5c518; color: #000; font-weight: 700; }
 .tile.is-unrated .mc-film__dial { display: none; }
 .tile.is-new .mc-poster { animation: just-added 2.4s ease-out 2; }
 @keyframes just-added { 0%, 100% { box-shadow: none; } 30% { box-shadow: var(--glow); } }

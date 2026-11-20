@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Badge, Button, Chip, FilmCard, Icon, StarRating, Tabs, TextField } from './ds'
 import { FILMS } from './data/films.js'
 import { posterFor } from './posters.js'
@@ -33,7 +33,7 @@ export default function App() {
       const reviews = [...(f.reviews || []), ...(store.reviews[f.id] || [])].sort(byNewest)
       const myRating = store.ratings[f.id] || 0
       const notes = [...reviews.map((r) => r.rating), ...(myRating ? [myRating] : [])]
-      return { ...f, poster: posterFor(f), reviews, myRating, notes, count: notes.length, score: average(notes) }
+      return { ...f, poster: posterFor(f), reviews, myRating, notes, count: notes.length, score: average(notes), imdb: store.imdb[f.id] }
     })
   }, [store])
 
@@ -79,6 +79,25 @@ export default function App() {
     requestAnimationFrame(() => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' }))
     return true
   }
+
+  // Récupère la note IMDb des films qui n'en ont pas encore (films existants et films ajoutés).
+  // Si l'API ne répond pas, rien n'est enregistré : on réessaiera au prochain chargement.
+  const asked = useRef(new Set())
+  useEffect(() => {
+    films.filter((f) => !(f.id in store.imdb) && !asked.current.has(f.id)).forEach((f) => {
+      asked.current.add(f.id)
+      fetch(`/api/imdb?${new URLSearchParams({ title: f.title, year: f.year || '' })}`)
+        .then((res) => (res.ok ? res.json() : Promise.reject()))
+        .then(({ rating }) =>
+          setStore((s) => {
+            const next = { ...s, imdb: { ...s.imdb, [f.id]: rating } }
+            saveStore(next)
+            return next
+          }),
+        )
+        .catch(() => {})
+    })
+  }, [films, store.imdb])
 
   useEffect(() => {
     if (!toast) return
@@ -215,6 +234,9 @@ function FilmTile({ film, isNew, onOpen, onRate }) {
           )}
         </span>
       </div>
+      <p className="tile__imdb">
+        {typeof film.imdb === 'number' ? <><b>IMDb</b> {film.imdb.toFixed(1)}/10</> : 'Note IMDb indisponible'}
+      </p>
     </li>
   )
 }
