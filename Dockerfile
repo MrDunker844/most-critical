@@ -6,7 +6,11 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-
-# Sert le site et le relais /api/imdb. Donner la clé au lancement : -e OMDB_API_KEY=…
+# ---- Serve stage ----
+FROM node:24-alpine
+WORKDIR /app
+RUN npm install -g serve@14
+COPY --from=build /app/dist ./dist
 EXPOSE 8080
-CMD ["npx", "vite", "preview", "--host", "0.0.0.0", "--port", "8080"]
+USER 1001
+CMD ["serve", "-s", "dist", "-l", "8080"]
